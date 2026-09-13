@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background-color: #131517;
+  color: #e5e7eb;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #181a1d;
+}
+::-webkit-scrollbar-thumb {
+  background: #33383f;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #464c54;
+}

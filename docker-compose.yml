@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  plex-library-cleanup:
+    build: .
+    container_name: plex-library-cleanup
+    restart: unless-stopped
+    ports:
+      - "6064:6064"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATA_DIR=/app/data
