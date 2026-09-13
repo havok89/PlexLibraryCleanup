@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { X, CheckCircle, XCircle, Bell, Sliders, Server, ShieldAlert, Sparkles, Send, Info } from 'lucide-react';
+import { X, CheckCircle, XCircle, Bell, Sliders, Server, ShieldAlert, ShieldCheck, Sparkles, Send, Info, Film, Tv } from 'lucide-react';
 
 export default function SettingsModal({
   isOpen,
   onClose,
   settings,
   onUpdateSettings,
-  onTestDiscord
+  onTestDiscord,
+  onOpenBulkWhitelist
 }) {
   if (!isOpen || !settings) return null;
 
@@ -15,6 +16,11 @@ export default function SettingsModal({
   const [moviesMonths, setMoviesMonths] = useState(settings.default_unwatched_months_movies || 6);
   const [showsMonths, setShowsMonths] = useState(settings.default_unwatched_months_shows || 6);
   const [dryRun, setDryRun] = useState(settings.dry_run);
+  const [selectedMovies, setSelectedMovies] = useState(settings.plex?.movie_libraries || []);
+  const [selectedShows, setSelectedShows] = useState(settings.plex?.tv_libraries || []);
+  const [dynamicLeavingTitle, setDynamicLeavingTitle] = useState(settings.dynamic_leaving_title ?? true);
+  const [trackWatchAllUsers, setTrackWatchAllUsers] = useState(settings.track_watch_all_users ?? true);
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState(settings.discord?.webhook_url || '');
   const [isTestingDiscord, setIsTestingDiscord] = useState(false);
   const [discordFeedback, setDiscordFeedback] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -26,7 +32,12 @@ export default function SettingsModal({
       tv_cleanup_enabled: tvEnabled,
       default_unwatched_months_movies: Number(moviesMonths),
       default_unwatched_months_shows: Number(showsMonths),
-      dry_run: dryRun
+      dry_run: dryRun,
+      selected_movie_libraries: selectedMovies,
+      selected_tv_libraries: selectedShows,
+      dynamic_leaving_title: dynamicLeavingTitle,
+      track_watch_all_users: trackWatchAllUsers,
+      discord_webhook_url: discordWebhookUrl
     });
     setIsSaving(false);
     onClose();
@@ -36,6 +47,11 @@ export default function SettingsModal({
     setIsTestingDiscord(true);
     setDiscordFeedback(null);
     try {
+      if (discordWebhookUrl !== (settings.discord?.webhook_url || '')) {
+        await onUpdateSettings({
+          discord_webhook_url: discordWebhookUrl
+        });
+      }
       const res = await onTestDiscord();
       setDiscordFeedback({ success: true, message: "Test alert sent to Discord!" });
     } catch (e) {
@@ -116,6 +132,93 @@ export default function SettingsModal({
             </div>
           </div>
 
+          {/* Plex Libraries Auto-Discovery */}
+          <div className="border-t border-[#262a2f] pt-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Film className="w-3.5 h-3.5 text-amber-400" />
+                Active Plex Libraries {settings.plex?.server_name && `(${settings.plex.server_name})`}
+              </h3>
+              <span className="text-[11px] text-gray-500">Auto-discovered from Plex</span>
+            </div>
+
+            <div className="space-y-3">
+              {/* Movie Libraries */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                  Movie Libraries to Monitor & Clean
+                </label>
+                {settings.plex?.available_movie_libraries?.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {settings.plex.available_movie_libraries.map((lib) => {
+                      const isSelected = selectedMovies.includes(lib.title);
+                      return (
+                        <button
+                          key={lib.key || lib.title}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedMovies(selectedMovies.filter((t) => t !== lib.title));
+                            } else {
+                              setSelectedMovies([...selectedMovies, lib.title]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                              : 'bg-[#131517] border-[#2c3138] text-gray-400 hover:text-gray-300'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-amber-400' : 'bg-gray-600'}`} />
+                          {lib.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500 italic">No movie libraries found on Plex</div>
+                )}
+              </div>
+
+              {/* TV Libraries */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                  TV Show Libraries to Monitor & Clean
+                </label>
+                {settings.plex?.available_tv_libraries?.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {settings.plex.available_tv_libraries.map((lib) => {
+                      const isSelected = selectedShows.includes(lib.title);
+                      return (
+                        <button
+                          key={lib.key || lib.title}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedShows(selectedShows.filter((t) => t !== lib.title));
+                            } else {
+                              setSelectedShows([...selectedShows, lib.title]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                              : 'bg-[#131517] border-[#2c3138] text-gray-400 hover:text-gray-300'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-amber-400' : 'bg-gray-600'}`} />
+                          {lib.title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-500 italic">No TV show libraries found on Plex</div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Cleanup Automation Toggles */}
           <div className="border-t border-[#262a2f] pt-5 space-y-4">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -158,6 +261,54 @@ export default function SettingsModal({
               </button>
             </div>
 
+            {/* Dynamic Countdown Shelf Title Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-[#131517] rounded-xl border border-[#262a2f]">
+              <div className="pr-3">
+                <div className="text-sm font-semibold text-white flex flex-wrap items-center gap-2">
+                  <span>Dynamic Countdown Shelf Title</span>
+                  {settings.current_leaving_collection_title && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Currently: "{settings.current_leaving_collection_title}"
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  Automatically updates shelf title based on time left (e.g. <em>Leaving in 2 weeks</em>, <em>Leaving in 1 week</em>, <em>Leaving tomorrow</em>, <em>Leaving today</em>)
+                </div>
+              </div>
+              <button
+                onClick={() => setDynamicLeavingTitle(!dynamicLeavingTitle)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                  dynamicLeavingTitle ? 'bg-amber-500' : 'bg-gray-700'
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition duration-200 ${dynamicLeavingTitle ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            {/* Track Watch Activity Across All Users Toggle */}
+            <div className="flex items-center justify-between p-3.5 bg-[#131517] rounded-xl border border-[#262a2f]">
+              <div className="pr-3">
+                <div className="text-sm font-semibold text-white flex flex-wrap items-center gap-2">
+                  <span>Track Watch Activity Across All Users</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${trackWatchAllUsers ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-gray-700/50 text-gray-300 border border-gray-600'}`}>
+                    {trackWatchAllUsers ? 'Any User (Server-Wide)' : 'Admin Only'}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  When enabled, an item is only considered unwatched if <strong>no one on your Plex server</strong> has watched it within the threshold. When disabled, only your admin profile watch history is checked.
+                </div>
+              </div>
+              <button
+                onClick={() => setTrackWatchAllUsers(!trackWatchAllUsers)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                  trackWatchAllUsers ? 'bg-amber-500' : 'bg-gray-700'
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition duration-200 ${trackWatchAllUsers ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
             {/* Unwatched Thresholds */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div>
@@ -196,6 +347,31 @@ export default function SettingsModal({
                 </select>
               </div>
             </div>
+
+            {/* Direct Additions Protection */}
+            {onOpenBulkWhitelist && (
+              <div className="flex items-center justify-between p-3.5 bg-[#131517] rounded-xl border border-emerald-500/20">
+                <div>
+                  <div className="text-sm font-semibold text-white flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    Protect Media Added by You
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    1-click bulk mark direct additions and admin additions as "Keep" to exclude them from cleanup.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenBulkWhitelist();
+                  }}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-colors shrink-0"
+                >
+                  Manage Protection
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Safety: Dry Run Mode */}
@@ -221,30 +397,46 @@ export default function SettingsModal({
             </div>
           </div>
 
-          {/* Discord Webhook Testing */}
-          <div className="border-t border-[#262a2f] pt-5 flex items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold text-white flex items-center gap-1.5">
-                <Bell className="w-4 h-4 text-amber-400" />
-                Test Discord Notifications
-              </div>
-              <div className="text-xs text-gray-400">
-                Sends a sample embed to your configured webhook URL
-              </div>
-              {discordFeedback && (
-                <div className={`text-xs mt-1 font-medium ${discordFeedback.success ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {discordFeedback.message}
+          {/* Discord Webhook Configuration & Testing */}
+          <div className="border-t border-[#262a2f] pt-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-white flex items-center gap-1.5">
+                  <Bell className="w-4 h-4 text-amber-400" />
+                  Discord Notifications
                 </div>
-              )}
+                <div className="text-xs text-gray-400">
+                  Receive alerts when items are staged for cleanup or month-end deletions occur
+                </div>
+              </div>
+              <button
+                onClick={handleTestDiscord}
+                disabled={isTestingDiscord || !discordWebhookUrl}
+                className="flex items-center space-x-1.5 bg-[#282c31] hover:bg-[#343a42] text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold border border-[#383d43] transition-colors disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isTestingDiscord ? 'Sending...' : 'Send Test'}</span>
+              </button>
             </div>
-            <button
-              onClick={handleTestDiscord}
-              disabled={isTestingDiscord || !settings.discord?.configured}
-              className="flex items-center space-x-1.5 bg-[#282c31] hover:bg-[#343a42] text-gray-200 px-3 py-2 rounded-xl text-xs font-semibold border border-[#383d43] transition-colors disabled:opacity-50"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isTestingDiscord ? 'Sending...' : 'Send Test'}</span>
-            </button>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Webhook URL
+              </label>
+              <input
+                type="text"
+                value={discordWebhookUrl}
+                onChange={(e) => setDiscordWebhookUrl(e.target.value)}
+                placeholder="https://discord.com/api/webhooks/..."
+                className="w-full bg-[#131517] border border-[#2c3138] rounded-xl px-3 py-2 text-xs font-mono text-gray-200 focus:outline-none focus:border-amber-500/80 placeholder-gray-600"
+              />
+            </div>
+
+            {discordFeedback && (
+              <div className={`text-xs mt-1 font-medium ${discordFeedback.success ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {discordFeedback.message}
+              </div>
+            )}
           </div>
 
           {/* TV App Home Row Notice */}

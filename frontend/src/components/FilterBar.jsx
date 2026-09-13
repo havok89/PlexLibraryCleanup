@@ -1,15 +1,23 @@
 import React from 'react';
-import { Search, UserCheck, Shield, Clock, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { Search, UserCheck, User, Shield, Clock, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 
 export default function FilterBar({
   searchQuery,
   setSearchQuery,
   unwatchedMonths,
   setUnwatchedMonths,
-  requestedByOthersOnly,
-  setRequestedByOthersOnly,
+  sourceFilter = 'all',
+  setSourceFilter,
   includeWhitelisted,
   setIncludeWhitelisted,
+  leavingSoonOnly,
+  setLeavingSoonOnly,
+  totalCount = 0,
+  myCount = 0,
+  othersCount = 0,
+  stagedCount = 0,
+  unkeptUserCount = 0,
+  onOpenBulkWhitelist,
   sortBy,
   setSortBy
 }) {
@@ -44,19 +52,25 @@ export default function FilterBar({
             <Clock className="w-3.5 h-3.5 text-amber-400" />
             Unwatched:
           </span>
-          {monthOptions.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setUnwatchedMonths(opt.value)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                unwatchedMonths === opt.value
-                  ? 'bg-amber-500 text-black font-semibold shadow-sm'
-                  : 'bg-[#131517] text-gray-400 hover:text-white hover:bg-[#282c31] border border-[#262a2f]'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {monthOptions.map((opt) => {
+            const isSelected = searchQuery.trim() ? opt.value === 0 : unwatchedMonths === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setUnwatchedMonths(opt.value);
+                  if (searchQuery.trim()) setSearchQuery('');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  isSelected
+                    ? 'bg-amber-500 text-black font-semibold shadow-sm'
+                    : 'bg-[#131517] text-gray-400 hover:text-white hover:bg-[#282c31] border border-[#262a2f]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Sort selector */}
@@ -75,36 +89,114 @@ export default function FilterBar({
         </div>
       </div>
 
-      {/* Second Row: Toggle Filters */}
+      {/* Second Row: Source Filters & Status Toggles */}
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#262a2f]">
-        {/* Toggle: Seerr Requested by Others */}
+        {/* Source: All */}
         <button
-          onClick={() => setRequestedByOthersOnly(!requestedByOthersOnly)}
+          onClick={() => {
+            setSourceFilter('all');
+            setLeavingSoonOnly(false);
+          }}
           className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-            requestedByOthersOnly
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+            sourceFilter === 'all' && !leavingSoonOnly
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm font-semibold'
               : 'bg-[#131517] text-gray-400 border-[#262a2f] hover:text-white hover:bg-[#202428]'
           }`}
         >
-          <UserCheck className="w-3.5 h-3.5" />
-          <span>Requested by Others in Seerr</span>
-          {requestedByOthersOnly && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 ml-1"></span>
+          <span>All Items</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-[#262a2f] text-gray-300">
+            {totalCount}
+          </span>
+        </button>
+
+        {/* Source: Added by Me */}
+        <button
+          onClick={() => {
+            setSourceFilter(sourceFilter === 'mine' ? 'all' : 'mine');
+            setLeavingSoonOnly(false);
+          }}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+            sourceFilter === 'mine' && !leavingSoonOnly
+              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm font-semibold'
+              : 'bg-[#131517] text-gray-400 border-[#262a2f] hover:text-white hover:bg-[#202428]'
+          }`}
+        >
+          <User className="w-3.5 h-3.5 text-amber-400" />
+          <span>Added by Me</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/20 text-amber-300">
+            {myCount}
+          </span>
+        </button>
+
+        {/* Source: Overseerr Requests */}
+        <button
+          onClick={() => {
+            setSourceFilter(sourceFilter === 'others' ? 'all' : 'others');
+            setLeavingSoonOnly(false);
+          }}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+            sourceFilter === 'others' && !leavingSoonOnly
+              ? 'bg-blue-500/20 text-blue-300 border-blue-500/50 shadow-sm font-semibold'
+              : 'bg-[#131517] text-gray-400 border-[#262a2f] hover:text-white hover:bg-[#202428]'
+          }`}
+        >
+          <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+          <span>Overseerr Requests</span>
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-blue-500/20 text-blue-300">
+            {othersCount}
+          </span>
+        </button>
+
+        {/* Status: Marked for Deletion / Leaving Soon */}
+        <button
+          onClick={() => {
+            setLeavingSoonOnly(!leavingSoonOnly);
+            if (!leavingSoonOnly) setSourceFilter('all');
+          }}
+          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+            leavingSoonOnly
+              ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-sm font-semibold'
+              : 'bg-[#131517] text-gray-400 border-[#262a2f] hover:text-white hover:bg-[#202428]'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5 text-rose-400" />
+          <span>Marked for Deletion</span>
+          {stagedCount > 0 && (
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              leavingSoonOnly ? 'bg-rose-500 text-white' : 'bg-rose-500/20 text-rose-300'
+            }`}>
+              {stagedCount}
+            </span>
           )}
         </button>
 
-        {/* Toggle: Include Whitelisted / Kept items */}
+        {/* Status: Include Whitelisted / Kept items */}
         <button
           onClick={() => setIncludeWhitelisted(!includeWhitelisted)}
           className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
             includeWhitelisted
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-sm font-semibold'
               : 'bg-[#131517] text-gray-400 border-[#262a2f] hover:text-white hover:bg-[#202428]'
           }`}
         >
-          <Shield className="w-3.5 h-3.5" />
-          <span>Show Whitelisted / Kept</span>
+          <Shield className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Show Kept</span>
         </button>
+
+        {/* Bulk Action: Keep Added by Me */}
+        {unkeptUserCount > 0 && onOpenBulkWhitelist && (
+          <button
+            onClick={onOpenBulkWhitelist}
+            title="Bulk protect media added directly by you from deletion"
+            className="ml-auto flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 shadow-sm transition-all"
+          >
+            <Shield className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20" />
+            <span>Keep Added by Me</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-500 text-black">
+              {unkeptUserCount}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

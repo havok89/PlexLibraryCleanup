@@ -6,9 +6,12 @@ export default function StatsBanner({
   activeTab,
   filteredCount,
   unwatchedCount,
+  stagedCount = 0,
   reclaimableGb,
   isCleanupEnabled,
-  onToggleCleanup
+  onToggleCleanup,
+  isLeavingFilterActive = false,
+  onToggleLeavingFilter
 }) {
   const isMediaTab = activeTab === 'movie' || activeTab === 'show';
   const label = activeTab === 'movie' ? 'Movies' : 'TV Shows';
@@ -43,19 +46,32 @@ export default function StatsBanner({
           </div>
 
           {/* Scheduled Leaving */}
-          <div className="bg-[#131517] p-4 rounded-xl border border-[#262a2f] col-span-2 sm:col-span-1">
-            <div className="flex items-center space-x-2 text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <span>Leaving Collection</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-sm font-bold px-2.5 py-1 rounded-md ${
-                isCleanupEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-700/50 text-gray-400 border border-gray-600/30'
+          <div
+            onClick={() => onToggleLeavingFilter && onToggleLeavingFilter()}
+            title="Click to toggle filter for items marked for deletion"
+            className={`p-4 rounded-xl border col-span-2 sm:col-span-1 transition-all cursor-pointer ${
+              isLeavingFilterActive
+                ? 'bg-rose-500/10 border-rose-500/50 shadow-md shadow-rose-950/30'
+                : 'bg-[#131517] border-[#262a2f] hover:border-amber-500/40'
+            }`}
+          >
+            <div className="flex items-center justify-between text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">
+              <span className="flex items-center space-x-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <span>Marked For Deletion</span>
+              </span>
+              <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                isCleanupEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-700/50 text-gray-400'
               }`}>
-                {isCleanupEnabled ? 'Active on TV' : 'Inactive / Paused'}
+                {isCleanupEnabled ? 'ACTIVE' : 'PAUSED'}
               </span>
             </div>
-            <p className="text-xs text-gray-500 mt-2 truncate">Plex: Leaving at end of month</p>
+            <div className="text-2xl font-bold text-white tracking-tight">
+              {stagedCount} <span className="text-sm font-normal text-gray-400">items</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1 truncate">
+              {isLeavingFilterActive ? 'Filtered to marked items (click to clear)' : 'Plex: Leaving at end of month'}
+            </p>
           </div>
         </div>
 

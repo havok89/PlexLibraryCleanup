@@ -20,6 +20,7 @@ PLEX_HEADERS = {
 class PlexAuthService:
     def __init__(self):
         self.client_id = settings.CLIENT_IDENTIFIER
+        self._owner_info = None
 
     async def create_pin(self) -> Optional[Dict[str, Any]]:
         """Creates a Plex PIN for OAuth login"""
@@ -52,6 +53,8 @@ class PlexAuthService:
 
     async def get_server_owner_identity(self) -> Optional[Dict[str, Any]]:
         """Fetches the identity of the server owner using PLEX_TOKEN"""
+        if self._owner_info:
+            return self._owner_info
         if not settings.PLEX_TOKEN:
             return None
         headers = {**PLEX_HEADERS, "X-Plex-Token": settings.PLEX_TOKEN}
@@ -59,7 +62,8 @@ class PlexAuthService:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.get("https://plex.tv/api/v2/user", headers=headers)
                 if res.status_code == 200:
-                    return res.json()
+                    self._owner_info = res.json()
+                    return self._owner_info
         except Exception as e:
             logger.warning(f"Failed to fetch server owner info from plex.tv: {e}")
         return None
@@ -100,9 +104,20 @@ class PlexAuthService:
                     owner_id = str(owner_info.get("id"))
                     owner_email = owner_info.get("email")
                     owner_username = owner_info.get("username")
+                    owner_title = owner_info.get("title")
 
                     # If not the server owner, reject
-                    if user_id != owner_id and email != owner_email and username != owner_username:
+                    is_owner = False
+                    if user_id and owner_id and user_id == owner_id:
+                        is_owner = True
+                    elif email and owner_email and email.strip().lower() == owner_email.strip().lower():
+                        is_owner = True
+                    elif username and owner_username and username.strip().lower() == owner_username.strip().lower():
+                        is_owner = True
+                    elif username and owner_title and username.strip().lower() == owner_title.strip().lower():
+                        is_owner = True
+
+                    if not is_owner:
                         logger.warning(f"Unauthorized login attempt: {username} ({email}) is not server owner {owner_username}")
                         return {
                             "status": "unauthorized",

@@ -16,7 +16,7 @@ async def create_auth_pin():
     return pin_data
 
 @auth_router.get("/pin/{pin_id}")
-async def check_auth_pin(pin_id: int, response: Response):
+async def check_auth_pin(pin_id: int, request: Request, response: Response):
     """Polls Plex PIN status. If authorized, creates session and sets cookie"""
     result = await plex_auth_service.check_pin_and_login(pin_id)
     if not result:
@@ -24,6 +24,10 @@ async def check_auth_pin(pin_id: int, response: Response):
 
     if result.get("status") == "authenticated":
         session_id = result["session_id"]
+        is_https = (
+            request.url.scheme == "https"
+            or request.headers.get("x-forwarded-proto") == "https"
+        )
         # Set HttpOnly session cookie
         response.set_cookie(
             key="session_token",
@@ -31,10 +35,11 @@ async def check_auth_pin(pin_id: int, response: Response):
             max_age=settings.SESSION_EXPIRY_DAYS * 86400,
             httponly=True,
             samesite="lax",
-            secure=False # Set to True automatically when behind HTTPS
+            secure=is_https
         )
         return {
             "status": "authenticated",
+            "token": session_id,
             "user": result["user"]
         }
 
@@ -80,6 +85,10 @@ async def get_current_user_status(request: Request):
 async def logout(request: Request, response: Response):
     """Clears user session and deletes cookie"""
     session_id = request.cookies.get("session_token")
+    if not session_id:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_id = auth_header.split("Bearer ")[1].strip()
     if session_id:
         delete_session(session_id)
     response.delete_cookie("session_token")

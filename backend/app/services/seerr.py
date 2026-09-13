@@ -7,8 +7,12 @@ logger = logging.getLogger(__name__)
 
 class SeerrClient:
     def __init__(self):
-        self.url = (settings.OVERSEERR_URL or "").rstrip("/")
-        self.api_key = settings.OVERSEERR_API_KEY
+        self.url = (settings.OVERSEERR_URL or "").strip().rstrip("/")
+        api_key = (settings.OVERSEERR_API_KEY or "").strip().strip("\"'")
+        # Overseerr/Seerr generates base64-encoded keys. If trailing '=' padding was dropped, auto-pad it
+        if len(api_key) % 4 != 0 and all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" for c in api_key):
+            api_key += "=" * (4 - (len(api_key) % 4))
+        self.api_key = api_key
         self.headers = {
             "X-Api-Key": self.api_key,
             "Accept": "application/json"

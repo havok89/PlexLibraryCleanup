@@ -10,6 +10,7 @@ from .config import settings
 from .models.db import init_db
 from .api.routes import router as api_router
 from .api.auth import auth_router
+from .api.poster import poster_router
 from .services.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -25,6 +26,23 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Starting background scheduler...")
     start_scheduler()
+
+    # Pre-warm media cache in background so first user visit is instant (< 5ms)
+    async def prewarm():
+        import asyncio
+        await asyncio.sleep(1)
+        try:
+            from .services.sync_engine import sync_engine
+            logger.info("Pre-warming media cache in background...")
+            await sync_engine.get_enriched_media("movie", force_refresh=True)
+            await sync_engine.get_enriched_media("show", force_refresh=True)
+            logger.info("Media cache pre-warmed successfully!")
+        except Exception as e:
+            logger.warning(f"Error pre-warming media cache: {e}")
+
+    import asyncio
+    asyncio.create_task(prewarm())
+
     yield
     # Shutdown
     logger.info("Stopping background scheduler...")
@@ -46,6 +64,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(poster_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(api_router, prefix="/api")
 
@@ -67,4 +86,4 @@ if os.path.exists(static_dir):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=settings.HOST, port=settings.PORT, reload=True)
+    uvicorn.run("app.main:app", host=settings.HOST, port=settings.PORT)

@@ -122,12 +122,70 @@ def add_to_whitelist(rating_key: str, media_type: str, title: str, year: Optiona
             INSERT OR REPLACE INTO whitelist (rating_key, media_type, title, year, reason, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (str(rating_key), media_type, title, year, reason, datetime.utcnow()))
+        # Remove from scheduled_items if it was staged
+        cursor.execute("DELETE FROM scheduled_items WHERE rating_key = ?", (str(rating_key),))
         conn.commit()
+
+def bulk_add_to_whitelist(items: List[Dict[str, Any]], reason: str = "") -> int:
+    if not items:
+        return 0
+    with get_db() as conn:
+        cursor = conn.cursor()
+        now = datetime.utcnow()
+        records = [
+            (str(it["rating_key"]), it.get("media_type", "movie"), it.get("title", "Unknown"), it.get("year"), reason, now)
+            for it in items
+        ]
+        cursor.executemany("""
+            INSERT OR REPLACE INTO whitelist (rating_key, media_type, title, year, reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, records)
+        
+        # Remove all from scheduled_items
+        key_records = [(str(it["rating_key"]),) for it in items]
+        cursor.executemany("DELETE FROM scheduled_items WHERE rating_key = ?", key_records)
+        conn.commit()
+    return len(items)
 
 def remove_from_whitelist(rating_key: str):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM whitelist WHERE rating_key = ?", (str(rating_key),))
+        conn.commit()
+
+# Scheduled / Staged items helpers
+def is_staged_in_db(rating_key: str) -> bool:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM scheduled_items WHERE rating_key = ? AND status = 'staged'", (str(rating_key),))
+        return cursor.fetchone() is not None
+
+def stage_item(
+    rating_key: str,
+    media_type: str,
+    title: str,
+    year: Optional[int] = None,
+    size_bytes: int = 0,
+    requester_name: Optional[str] = None,
+    requester_avatar: Optional[str] = None,
+    scheduled_delete_at: Optional[datetime] = None
+):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM whitelist WHERE rating_key = ?", (str(rating_key),))
+        cursor.execute("""
+            INSERT OR REPLACE INTO scheduled_items (
+                rating_key, media_type, title, year, size_bytes, requester_name, requester_avatar, scheduled_delete_at, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staged')
+        """, (
+            str(rating_key), media_type, title, year, size_bytes, requester_name, requester_avatar, scheduled_delete_at or datetime.utcnow()
+        ))
+        conn.commit()
+
+def unstage_item(rating_key: str):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM scheduled_items WHERE rating_key = ?", (str(rating_key),))
         conn.commit()
 
 # Recommendation helpers

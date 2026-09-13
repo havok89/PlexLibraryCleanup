@@ -49,7 +49,10 @@ export default function LoginScreen({ onLoginSuccess }) {
         if (data.status === 'authenticated') {
           clearInterval(pollTimerRef.current);
           setIsLoading(false);
-          onLoginSuccess(data.user);
+          if (data.token) {
+            localStorage.setItem('plex_session_token', data.token);
+          }
+          onLoginSuccess(data.user, data.token);
         } else if (data.status === 'unauthorized') {
           clearInterval(pollTimerRef.current);
           setIsLoading(false);
@@ -108,6 +111,18 @@ export default function LoginScreen({ onLoginSuccess }) {
               </>
             )}
           </button>
+          {isLoading && pinData?.auth_url && (
+            <div className="mt-3">
+              <a
+                href={pinData.auth_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
+              >
+                Popup blocked? Tap here to authorize on Plex
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="text-xs text-gray-500 border-t border-[#262a2f] pt-4">

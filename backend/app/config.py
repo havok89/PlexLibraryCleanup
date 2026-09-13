@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     TV_CLEANUP_ENABLED: bool = False
     DEFAULT_UNWATCHED_MONTHS_MOVIES: int = 6
     DEFAULT_UNWATCHED_MONTHS_SHOWS: int = 6
+    TRACK_WATCH_ALL_USERS: bool = True
 
     # Collection Titles & Visibility
     LEAVING_COLLECTION_NAME: str = "Leaving at the end of the month"
