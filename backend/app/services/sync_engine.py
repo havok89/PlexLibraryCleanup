@@ -121,15 +121,9 @@ class SyncEngine:
                 it["is_admin_request"] = False
                 it["requested_by_other"] = False
 
-            # Item is staged for cleanup if not whitelisted and (staged in DB or meets leaving threshold)
-            # Staged items remain staged through the countdown period (last chance to watch)
-            is_staged_in_table = str(it.get("rating_key")) in staged_keys
-
-            it["is_staged"] = (not it.get("is_whitelisted")) and (
-                is_staged_in_table or (
-                    is_cleanup_active and (it.get("days_unwatched", 0) >= threshold_days)
-                )
-            )
+            # Item is staged for cleanup if not whitelisted AND explicitly scheduled in the database
+            # Automated additions only occur during month-start rollover; mid-month items wait for next month
+            it["is_staged"] = (not it.get("is_whitelisted")) and (str(it.get("rating_key")) in staged_keys)
 
         self._media_cache[media_type] = (now, items)
         return items
@@ -248,33 +242,49 @@ class SyncEngine:
                         dry_run=dry_run
                     )
 
+        # Check if this run should auto-stage a new monthly batch (only during month-start rollover)
+        today = date.today()
+        current_month_key = f"{today.year}-{today.month:02d}"
+        last_auto_stage_month = get_dynamic_setting("LAST_AUTO_STAGE_MONTH")
+        is_month_start_run = (last_auto_stage_month != current_month_key)
+
         # 1. Process Movies if enabled
         if self.is_movie_cleanup_enabled():
             movies = await self.get_enriched_media("movie")
             summary["movies_evaluated"] = len(movies)
             threshold_days = self.get_unwatched_months_threshold("movie") * 30
 
-            leaving_movie_keys = []
             newly_staged_movies = []
 
-            for m in movies:
-                if m["is_whitelisted"]:
-                    continue
+            # Only auto-stage new candidates at the start of the month
+            if is_month_start_run:
+                logger.info(f"Month rollover detected ({current_month_key}): Scanning for new candidates to stage...")
+                for m in movies:
+                    if m["is_whitelisted"]:
+                        continue
 
-                if m["days_unwatched"] >= threshold_days:
-                    leaving_movie_keys.append(m["rating_key"])
-                    
-                    # Record in DB
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT 1 FROM scheduled_items WHERE rating_key = ?", (m["rating_key"],))
-                        if not cursor.fetchone():
-                            cursor.execute("""
-                                INSERT INTO scheduled_items (rating_key, media_type, title, year, size_bytes, requester_name, requester_avatar, scheduled_delete_at, status)
-                                VALUES (?, 'movie', ?, ?, ?, ?, ?, ?, 'staged')
-                            """, (m["rating_key"], m["title"], m.get("year"), m["size_bytes"], m.get("requester_name"), m.get("requester_avatar"), target_deletion_date))
-                            conn.commit()
-                            newly_staged_movies.append(m)
+                    if m["days_unwatched"] >= threshold_days:
+                        with get_db() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT 1 FROM scheduled_items WHERE rating_key = ?", (m["rating_key"],))
+                            if not cursor.fetchone():
+                                cursor.execute("""
+                                    INSERT INTO scheduled_items (rating_key, media_type, title, year, size_bytes, requester_name, requester_avatar, scheduled_delete_at, status)
+                                    VALUES (?, 'movie', ?, ?, ?, ?, ?, ?, 'staged')
+                                """, (m["rating_key"], m["title"], m.get("year"), m["size_bytes"], m.get("requester_name"), m.get("requester_avatar"), target_deletion_date))
+                                conn.commit()
+                                newly_staged_movies.append(m)
+
+            # Query the active staged list (batch from month start + any manual admin additions)
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT s.rating_key 
+                    FROM scheduled_items s 
+                    WHERE s.media_type = 'movie' AND s.status = 'staged' 
+                    AND s.rating_key NOT IN (SELECT rating_key FROM whitelist)
+                """)
+                leaving_movie_keys = [str(row[0]) for row in cursor.fetchall()]
 
             summary["movies_staged"] = len(leaving_movie_keys)
 
@@ -283,7 +293,7 @@ class SyncEngine:
             for lib in plex_service.get_movie_libraries():
                 plex_service.sync_leaving_collection(lib, leaving_movie_keys, dynamic_leaving_title)
 
-            # Notify Discord of newly staged
+            # Notify Discord of newly staged batch if this was the month-start run
             if newly_staged_movies and settings.DISCORD_NOTIFY_ON_ADD:
                 await discord_notifier.notify_leaving_soon_added(newly_staged_movies, target_date_str, dynamic_leaving_title)
 
@@ -293,26 +303,34 @@ class SyncEngine:
             summary["shows_evaluated"] = len(shows)
             threshold_days = self.get_unwatched_months_threshold("show") * 30
 
-            leaving_show_keys = []
             newly_staged_shows = []
 
-            for s in shows:
-                if s["is_whitelisted"]:
-                    continue
+            if is_month_start_run:
+                for s in shows:
+                    if s["is_whitelisted"]:
+                        continue
 
-                if s["days_unwatched"] >= threshold_days:
-                    leaving_show_keys.append(s["rating_key"])
-                    
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT 1 FROM scheduled_items WHERE rating_key = ?", (s["rating_key"],))
-                        if not cursor.fetchone():
-                            cursor.execute("""
-                                INSERT INTO scheduled_items (rating_key, media_type, title, year, size_bytes, requester_name, requester_avatar, scheduled_delete_at, status)
-                                VALUES (?, 'show', ?, ?, ?, ?, ?, ?, 'staged')
-                            """, (s["rating_key"], s["title"], s.get("year"), s["size_bytes"], s.get("requester_name"), s.get("requester_avatar"), target_deletion_date))
-                            conn.commit()
-                            newly_staged_shows.append(s)
+                    if s["days_unwatched"] >= threshold_days:
+                        with get_db() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT 1 FROM scheduled_items WHERE rating_key = ?", (s["rating_key"],))
+                            if not cursor.fetchone():
+                                cursor.execute("""
+                                    INSERT INTO scheduled_items (rating_key, media_type, title, year, size_bytes, requester_name, requester_avatar, scheduled_delete_at, status)
+                                    VALUES (?, 'show', ?, ?, ?, ?, ?, ?, 'staged')
+                                """, (s["rating_key"], s["title"], s.get("year"), s["size_bytes"], s.get("requester_name"), s.get("requester_avatar"), target_deletion_date))
+                                conn.commit()
+                                newly_staged_shows.append(s)
+
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT s.rating_key 
+                    FROM scheduled_items s 
+                    WHERE s.media_type = 'show' AND s.status = 'staged' 
+                    AND s.rating_key NOT IN (SELECT rating_key FROM whitelist)
+                """)
+                leaving_show_keys = [str(row[0]) for row in cursor.fetchall()]
 
             summary["shows_staged"] = len(leaving_show_keys)
 
@@ -322,6 +340,9 @@ class SyncEngine:
 
             if newly_staged_shows and settings.DISCORD_NOTIFY_ON_ADD:
                 await discord_notifier.notify_leaving_soon_added(newly_staged_shows, target_date_str, dynamic_leaving_title)
+
+        if is_month_start_run:
+            set_dynamic_setting("LAST_AUTO_STAGE_MONTH", current_month_key)
 
         # 3. Always sync Curated Recommendations
         for lib in plex_service.get_movie_libraries():
