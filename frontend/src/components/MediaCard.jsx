@@ -10,8 +10,6 @@ export default function MediaCard({
   thresholdDays,
   isLeavingSoon
 }) {
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const sizeGb = item.size_bytes ? (item.size_bytes / (1024 ** 3)).toFixed(1) : null;
@@ -170,36 +168,14 @@ export default function MediaCard({
           </button>
 
           {/* Delete Button */}
-          {!showConfirmDelete ? (
-            <button
-              onClick={() => setShowConfirmDelete(true)}
-              title="Delete via Radarr/Sonarr"
-              aria-label="Delete media item"
-              className="flex-1 flex items-center justify-center py-2 rounded-lg bg-[#131517] hover:bg-rose-500/20 text-rose-500 hover:text-rose-400 border border-rose-500/30 hover:border-rose-500/50 transition-all"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          ) : (
-            <div className="flex-1 flex items-center justify-center gap-1">
-              <button
-                onClick={() => {
-                  setShowConfirmDelete(false);
-                  onDelete(item);
-                }}
-                title="Confirm delete"
-                className="flex-1 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors"
-              >
-                Delete?
-              </button>
-              <button
-                onClick={() => setShowConfirmDelete(false)}
-                title="Cancel"
-                className="px-2 py-1.5 rounded-lg bg-gray-700 text-gray-300 text-xs hover:bg-gray-600 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => onDelete(item)}
+            title="Delete via Radarr/Sonarr"
+            aria-label="Delete media item"
+            className="flex-1 flex items-center justify-center py-2 rounded-lg bg-[#131517] hover:bg-rose-500/20 text-gray-400 hover:text-rose-400 border border-[#262a2f] hover:border-rose-500/40 transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>

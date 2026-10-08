@@ -6,6 +6,7 @@ import MediaCard from './components/MediaCard';
 import SettingsModal from './components/SettingsModal';
 import BulkWhitelistModal from './components/BulkWhitelistModal';
 import ShelfManagerModal from './components/ShelfManagerModal';
+import DeleteConfirmModal from './components/DeleteConfirmModal';
 import LoginScreen from './components/LoginScreen';
 import { Film, Tv, Star, AlertCircle, Loader2, Sparkles, Check } from 'lucide-react';
 
@@ -20,6 +21,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isBulkWhitelistOpen, setIsBulkWhitelistOpen] = useState(false);
   const [isShelfManagerOpen, setIsShelfManagerOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Auth state
@@ -313,8 +316,14 @@ export default function App() {
     }
   };
 
-  // Delete item
-  const handleDelete = async (item) => {
+  // Open Delete confirmation modal
+  const handleDelete = (item) => {
+    setItemToDelete(item);
+  };
+
+  // Execute deletion confirmed in modal
+  const handleConfirmDelete = async (item) => {
+    setIsDeleting(true);
     try {
       const res = await authFetch(`/api/media/${item.rating_key}/delete?media_type=${item.media_type}`, {
         method: 'POST'
@@ -329,8 +338,11 @@ export default function App() {
       } else {
         showToast(`Failed to delete "${item.title}"`, 'error');
       }
+      setItemToDelete(null);
     } catch (e) {
       showToast('Error deleting item: ' + e.message, 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -828,6 +840,16 @@ export default function App() {
       <ShelfManagerModal
         isOpen={isShelfManagerOpen}
         onClose={() => setIsShelfManagerOpen(false)}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        item={itemToDelete}
+        isOpen={Boolean(itemToDelete)}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        isDryRun={stats?.dry_run}
+        isDeleting={isDeleting}
       />
     </div>
   );

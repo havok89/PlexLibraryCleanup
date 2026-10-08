@@ -61,39 +61,50 @@ Plex allows server administrators to publish collections directly onto the Home 
 
 ### 1. Clone & Configure
 ```bash
-git clone https://github.com/your-username/PlexLibraryCleanup.git
+git clone https://github.com/havok89/PlexLibraryCleanup.git
 cd PlexLibraryCleanup
 cp .env.example .env
 ```
 
-### 2. Edit `.env`
-Fill in your connection details in `.env`:
+### 2. Configure `.env`
+Edit `.env` with your editor of choice (e.g., `nano .env`).
+
+**Required (Minimum to run):**
 ```ini
 PLEX_URL=http://192.168.1.100:32400
 PLEX_TOKEN=your_plex_token_here
 PLEX_MOVIE_LIBRARIES=Movies
 PLEX_TV_LIBRARIES=TV Shows
+```
+> **Finding your Plex Token:** [Official Plex Guide](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
 
+**Optional Integrations (Overseerr, Radarr, Sonarr & Discord):**
+```ini
+# Overseerr / Jellyseerr (Shows who requested items & filters by requester)
 OVERSEERR_URL=http://192.168.1.100:5055
 OVERSEERR_API_KEY=your_overseerr_key
 
+# Radarr & Sonarr (Executes clean unmonitoring & file deletion)
 RADARR_URL=http://192.168.1.100:7878
 RADARR_API_KEY=your_radarr_key
 
 SONARR_URL=http://192.168.1.100:8989
 SONARR_API_KEY=your_sonarr_key
 
+# Discord Webhooks (Monthly cleanup announcement & completion reports)
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+
+# Safety Mode (Defaults to true: simulations only, no files removed)
 DRY_RUN=true
 ```
-
-> **Finding your Plex Token:** [Official Plex Guide](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
 
 ### 3. Launch Container
 ```bash
 docker-compose up -d
 ```
-Open **`http://<your-server-ip>:6064`** in your browser.
+1. Open **`http://<your-server-ip>:6064`** in your browser.
+2. Click **"Sign in with Plex"** and authorize with your Plex Server Admin account.
+3. Access is automatically locked down so only the server owner/admin can enter.
 
 ---
 

@@ -89,11 +89,11 @@ class TestCoreFunctions(unittest.TestCase):
         from datetime import datetime, timedelta
         sess_id = "test-token-12345"
         expires = datetime.utcnow() + timedelta(days=1)
-        create_session(sess_id, "user-99", "Callum", "callum@example.com", "https://avatar.png", expires)
+        create_session(sess_id, "user-99", "TestAdmin", "admin@example.com", "https://avatar.png", expires)
         
         sess = get_session(sess_id)
         self.assertIsNotNone(sess)
-        self.assertEqual(sess["username"], "Callum")
+        self.assertEqual(sess["username"], "TestAdmin")
         self.assertEqual(sess["plex_user_id"], "user-99")
         
         delete_session(sess_id)
